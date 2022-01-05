@@ -50,6 +50,7 @@ REQUIRED = [
     "grpcio-reflection>=1.34.0",
     "Jinja2>=2.0.0",
     "jsonschema",
+    "numpy>=1.7",
     "mmh3",
     "pandas>=1.0.0",
     "pandavro==1.5.*",
