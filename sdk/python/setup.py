@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import pathlib
+import sys
 
 from distutils.cmd import Command
 from setuptools import find_packages
@@ -33,10 +34,10 @@ except ImportError:
     from distutils.command.install import install
     from distutils.command.build_py import build_py
 
-NAME = "feast"
+NAME = "opendoor-feast"
 DESCRIPTION = "Python SDK for Feast"
-URL = "https://github.com/feast-dev/feast"
-AUTHOR = "Feast"
+URL = "https://github.com/opendoor-labs/feast"
+AUTHOR = "Opendoor"
 REQUIRES_PYTHON = ">=3.7.0"
 
 REQUIRED = [
@@ -121,6 +122,21 @@ CI_REQUIRED = [
 ] + GCP_REQUIRED + REDIS_REQUIRED + AWS_REQUIRED
 
 DEV_REQUIRED = ["mypy-protobuf==1.*", "grpcio-testing==1.*"] + CI_REQUIRED
+
+
+def inject_custom_repository(repository_name):
+    """
+    Ensure that we're not registering or uploading to public repos.
+    """
+    for command in ['register', 'upload']:
+        try:
+            index = sys.argv.index(command)
+        except ValueError:
+            continue
+        sys.argv.insert(index + 1, '--repository=%s' % (repository_name))
+
+
+inject_custom_repository('local')
 
 # Get git repo root directory
 repo_root = str(pathlib.Path(__file__).resolve().parent.parent.parent)
