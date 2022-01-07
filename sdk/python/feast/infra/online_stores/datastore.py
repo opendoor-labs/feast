@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
+import logging
 from datetime import datetime
 from multiprocessing.pool import ThreadPool
+from queue import Queue
+from threading import Lock, Thread
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from pydantic import PositiveInt, StrictStr
@@ -32,6 +35,8 @@ from feast.protos.feast.types.EntityKey_pb2 import EntityKey as EntityKeyProto
 from feast.protos.feast.types.Value_pb2 import Value as ValueProto
 from feast.repo_config import FeastConfigBaseModel, RepoConfig
 from feast.usage import log_exceptions_and_usage, tracing_span
+
+LOGGER = logging.getLogger(__name__)
 
 try:
     from google.auth.exceptions import DefaultCredentialsError
@@ -196,18 +201,18 @@ class DatastoreOnlineStore(OnlineStore):
                 key=key, exclude_from_indexes=("created_ts", "event_ts", "values")
             )
 
-            entity.update(
-                dict(
-                    key=entity_key.SerializeToString(),
-                    values={k: v.SerializeToString() for k, v in features.items()},
-                    event_ts=utils.make_tzaware(timestamp),
-                    created_ts=(
-                        utils.make_tzaware(created_ts)
-                        if created_ts is not None
-                        else None
-                    ),
-                )
+            content_entity = datastore.Entity(
+                exclude_from_indexes=tuple(features.keys())
             )
+            for k, v in features.items():
+                content_entity[k] = v.SerializeToString()
+            entity["key"] = entity_key.SerializeToString()
+            entity["values"] = content_entity
+            entity["event_ts"] = utils.make_tzaware(timestamp)
+            entity["created_ts"] = (
+                utils.make_tzaware(created_ts) if created_ts is not None else None
+            )
+
             entities.append(entity)
         with client.transaction():
             client.put_multi(entities)
@@ -262,15 +267,46 @@ class DatastoreOnlineStore(OnlineStore):
 def _delete_all_values(client, key):
     """
     Delete all data under the key path in datastore.
-    """
-    while True:
-        query = client.query(kind="Row", ancestor=key)
-        entities = list(query.fetch(limit=1000))
-        if not entities:
-            return
 
-        for entity in entities:
-            client.delete(entity.key)
+    Creates and uses a queue of lists of entity keys, which are batch deleted
+    by multiple threads.
+    """
+
+    class AtomicCounter(object):
+        # for tracking how many deletions have already occurred; not used outside this method
+        def __init__(self):
+            self.value = 0
+            self.lock = Lock()
+
+        def increment(self):
+            with self.lock:
+                self.value += 1
+
+    BATCH_SIZE = 500  # Dec 2021: delete_multi has a max size of 500: https://cloud.google.com/datastore/docs/concepts/limits
+    NUM_THREADS = 3
+    deletion_queue = Queue()
+    status_info_counter = AtomicCounter()
+
+    def worker(shared_counter):
+        while True:
+            client.delete_multi(deletion_queue.get())
+            shared_counter.increment()
+            LOGGER.debug(
+                f"batch deletions completed: {shared_counter.value} ({shared_counter.value * BATCH_SIZE} total entries) & outstanding queue size: {deletion_queue.qsize()}"
+            )
+            deletion_queue.task_done()
+
+    for _ in range(NUM_THREADS):
+        Thread(target=worker, args=(status_info_counter,), daemon=True).start()
+
+    query = client.query(kind="Row", ancestor=key)
+    while True:
+        entities = list(query.fetch(limit=BATCH_SIZE))
+        if not entities:
+            break
+        deletion_queue.put([entity.key for entity in entities])
+
+    deletion_queue.join()
 
 
 def _initialize_client(

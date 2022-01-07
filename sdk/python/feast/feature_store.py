@@ -65,6 +65,7 @@ from feast.on_demand_feature_view import OnDemandFeatureView
 from feast.online_response import OnlineResponse, _infer_online_entity_rows
 from feast.protos.feast.core.Registry_pb2 import Registry as RegistryProto
 from feast.protos.feast.serving.ServingService_pb2 import (
+    FieldStatus,
     GetOnlineFeaturesRequestV2,
     GetOnlineFeaturesResponse,
 )
@@ -72,8 +73,9 @@ from feast.protos.feast.types.EntityKey_pb2 import EntityKey as EntityKeyProto
 from feast.registry import Registry
 from feast.repo_config import RepoConfig, load_repo_config
 from feast.request_feature_view import RequestFeatureView
-from feast.type_map import python_value_to_proto_value
+from feast.type_map import python_values_to_proto_values
 from feast.usage import log_exceptions, log_exceptions_and_usage, set_usage_attribute
+from feast.value_type import ValueType
 from feast.version import get_version
 
 warnings.simplefilter("once", DeprecationWarning)
@@ -1143,6 +1145,9 @@ class FeatureStore:
             # Also create entity values to append to the result
             result_rows.append(_entity_row_to_field_values(entity_row_proto))
 
+        # Keep track of what has been requested from the OnlineStore
+        # to avoid requesting the same thing twice for ODFVs.
+        retrieved_feature_refs: Set[str] = set()
         for table, requested_features in grouped_refs:
             table_join_keys = [
                 entity_name_to_join_key_map[entity_name]
@@ -1157,6 +1162,11 @@ class FeatureStore:
                 table,
                 union_of_entity_keys,
             )
+            table_feature_names = {feature.name for feature in table.features}
+            retrieved_feature_refs |= {
+                f"{table.name}:{feature}" if feature in table_feature_names else feature
+                for feature in requested_features
+            }
 
         requested_result_row_names = self._get_requested_result_fields(
             result_rows, needed_request_fv_features
@@ -1169,6 +1179,7 @@ class FeatureStore:
             request_data_features,
             result_rows,
             union_of_entity_keys,
+            retrieved_feature_refs,
         )
 
         self._augment_response_with_on_demand_transforms(
@@ -1204,35 +1215,49 @@ class FeatureStore:
         request_data_features: Dict[str, List[Any]],
         result_rows: List[GetOnlineFeaturesResponse.FieldValues],
         union_of_entity_keys: List[EntityKeyProto],
+        retrieved_feature_refs: Set[str],
     ):
         # Add more feature values to the existing result rows for the request data features
         for feature_name, feature_values in request_data_features.items():
-            for row_idx, feature_value in enumerate(feature_values):
+            proto_values = python_values_to_proto_values(
+                feature_values, ValueType.UNKNOWN
+            )
+
+            for row_idx, proto_value in enumerate(proto_values):
                 result_row = result_rows[row_idx]
-                result_row.fields[feature_name].CopyFrom(
-                    python_value_to_proto_value(feature_value)
-                )
-                result_row.statuses[
-                    feature_name
-                ] = GetOnlineFeaturesResponse.FieldStatus.PRESENT
+                result_row.fields[feature_name].CopyFrom(proto_value)
+                result_row.statuses[feature_name] = FieldStatus.PRESENT
 
         # Add data if odfv requests specific feature views as dependencies
         if len(grouped_odfv_refs) > 0:
             for odfv, _ in grouped_odfv_refs:
                 for fv in odfv.input_feature_views.values():
-                    table_join_keys = [
-                        entity_name_to_join_key_map[entity_name]
-                        for entity_name in fv.entities
-                    ]
-                    self._populate_result_rows_from_feature_view(
-                        table_join_keys,
-                        full_feature_names,
-                        provider,
-                        [feature.name for feature in fv.features],
-                        result_rows,
-                        fv,
-                        union_of_entity_keys,
-                    )
+                    # Find the set of required Features which have not yet
+                    # been retrieved.
+                    not_yet_retrieved = {
+                        feature.name
+                        for feature in fv.projection.features
+                        if f"{fv.name}:{feature.name}" not in retrieved_feature_refs
+                    }
+                    # If there are required Features which have not yet been retrieved
+                    # retrieve them.
+                    if not_yet_retrieved:
+                        table_join_keys = [
+                            entity_name_to_join_key_map[entity_name]
+                            for entity_name in fv.entities
+                        ]
+                        self._populate_result_rows_from_feature_view(
+                            table_join_keys,
+                            full_feature_names,
+                            provider,
+                            list(not_yet_retrieved),
+                            result_rows,
+                            fv,
+                            union_of_entity_keys,
+                        )
+                    # Update the set of retrieved Features with any newly retrieved
+                    # Features.
+                    retrieved_feature_refs |= not_yet_retrieved
 
     def get_needed_request_data(
         self,
@@ -1300,9 +1325,7 @@ class FeatureStore:
                         if full_feature_names
                         else feature_name
                     )
-                    result_row.statuses[
-                        feature_ref
-                    ] = GetOnlineFeaturesResponse.FieldStatus.NOT_FOUND
+                    result_row.statuses[feature_ref] = FieldStatus.NOT_FOUND
             else:
                 for feature_name in feature_data:
                     feature_ref = (
@@ -1314,9 +1337,7 @@ class FeatureStore:
                         result_row.fields[feature_ref].CopyFrom(
                             feature_data[feature_name]
                         )
-                        result_row.statuses[
-                            feature_ref
-                        ] = GetOnlineFeaturesResponse.FieldStatus.PRESENT
+                        result_row.statuses[feature_ref] = FieldStatus.PRESENT
 
     def _augment_response_with_on_demand_transforms(
         self,
@@ -1372,22 +1393,26 @@ class FeatureStore:
             transformed_features_df = odfv.get_transformed_features_df(
                 initial_response_df, full_feature_names,
             )
+            selected_subset = [
+                f for f in transformed_features_df.columns if f in _feature_refs
+            ]
+
+            proto_values_by_column = {
+                feature: python_values_to_proto_values(
+                    transformed_features_df[feature].values, ValueType.UNKNOWN
+                )
+                for feature in selected_subset
+            }
+
             for row_idx in range(len(result_rows)):
                 result_row = result_rows[row_idx]
 
-                selected_subset = [
-                    f for f in transformed_features_df.columns if f in _feature_refs
-                ]
-
                 for transformed_feature in selected_subset:
                     odfv_result_names.add(transformed_feature)
-                    proto_value = python_value_to_proto_value(
-                        transformed_features_df[transformed_feature].values[row_idx]
+                    result_row.fields[transformed_feature].CopyFrom(
+                        proto_values_by_column[transformed_feature][row_idx]
                     )
-                    result_row.fields[transformed_feature].CopyFrom(proto_value)
-                    result_row.statuses[
-                        transformed_feature
-                    ] = GetOnlineFeaturesResponse.FieldStatus.PRESENT
+                    result_row.statuses[transformed_feature] = FieldStatus.PRESENT
 
         # Drop values that aren't needed
         unneeded_features = [
@@ -1498,7 +1523,7 @@ def _entity_row_to_field_values(
     result = GetOnlineFeaturesResponse.FieldValues()
     for k in row.fields:
         result.fields[k].CopyFrom(row.fields[k])
-        result.statuses[k] = GetOnlineFeaturesResponse.FieldStatus.PRESENT
+        result.statuses[k] = FieldStatus.PRESENT
 
     return result
 
