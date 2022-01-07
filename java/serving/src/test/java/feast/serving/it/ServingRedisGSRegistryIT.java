@@ -21,16 +21,13 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.google.cloud.storage.*;
 import com.google.cloud.storage.testing.RemoteStorageHelper;
 import feast.proto.core.RegistryProto;
+import feast.serving.config.ApplicationProperties;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
-public class ServingRedisGSRegistryIT extends ServingBase {
+public class ServingRedisGSRegistryIT extends ServingBaseTests {
   static Storage storage =
       RemoteStorageHelper.create()
           .getOptions()
@@ -41,26 +38,20 @@ public class ServingRedisGSRegistryIT extends ServingBase {
 
   static final String bucket = RemoteStorageHelper.generateBucketName();
 
-  @DynamicPropertySource
-  static void initialize(DynamicPropertyRegistry registry) {
-    registry.add("feast.registry", () -> String.format("gs://%s/registry.db", bucket));
-    registry.add("feast.registry-refresh-interval", () -> 1);
-
-    ServingBase.initialize(registry);
-  }
-
-  static void putToStorage(RegistryProto.Registry registry) {
-    BlobId blobId = BlobId.of(bucket, "registry.db");
+  static void putToStorage(BlobId blobId, RegistryProto.Registry registry) {
     storage.create(BlobInfo.newBuilder(blobId).build(), registry.toByteArray());
 
     assertArrayEquals(storage.get(blobId).getContent(), registry.toByteArray());
   }
 
+  static BlobId blobId;
+
   @BeforeAll
   static void setUp() {
     storage.create(BucketInfo.of(bucket));
+    blobId = BlobId.of(bucket, "registry.db");
 
-    putToStorage(registryProto);
+    putToStorage(blobId, registryProto);
   }
 
   @AfterAll
@@ -69,15 +60,17 @@ public class ServingRedisGSRegistryIT extends ServingBase {
   }
 
   @Override
-  void updateRegistryFile(RegistryProto.Registry registry) {
-    putToStorage(registry);
+  ApplicationProperties.FeastProperties createFeastProperties() {
+    final ApplicationProperties.FeastProperties feastProperties =
+        TestUtils.createBasicFeastProperties(
+            environment.getServiceHost("redis", 6379), environment.getServicePort("redis", 6379));
+    feastProperties.setRegistry(blobId.toGsUtilUri());
+
+    return feastProperties;
   }
 
-  @TestConfiguration
-  public static class GSRegistryConfig {
-    @Bean
-    Storage googleStorage() {
-      return storage;
-    }
+  @Override
+  void updateRegistryFile(RegistryProto.Registry registry) {
+    putToStorage(blobId, registry);
   }
 }
