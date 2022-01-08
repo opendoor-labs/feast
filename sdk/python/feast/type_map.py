@@ -290,6 +290,10 @@ def _python_value_to_proto_value(
                 return [
                     ProtoValue(int64_val=int(value.ToSeconds())) for value in values
                 ]
+            elif isinstance(sample, np.datetime64):
+                return [
+                ProtoValue(int64_val=int(pd.Timestamp(value).to_pydatetime().timestamp())) for value in values
+                ]
             return [ProtoValue(int64_val=int(value)) for value in values]
 
         if feast_value_type in PYTHON_SCALAR_VALUE_TYPE_TO_PROTO_VALUE:
