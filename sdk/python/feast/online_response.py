@@ -12,24 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import defaultdict
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List
 
 import pandas as pd
 
 from feast.feature_view import DUMMY_ENTITY_ID
-from feast.protos.feast.serving.ServingService_pb2 import (
-    GetOnlineFeaturesRequestV2,
-    GetOnlineFeaturesResponse,
-)
-from feast.protos.feast.types.Value_pb2 import Value as Value
-from feast.type_map import (
-    _proto_value_to_value_type,
-    _python_value_to_proto_value,
-    feast_value_type_to_python_type,
-    python_values_to_feast_value_type,
-)
-from feast.value_type import ValueType
+from feast.protos.feast.serving.ServingService_pb2 import GetOnlineFeaturesResponse
+from feast.type_map import feast_value_type_to_python_type
 
 
 class OnlineResponse:
@@ -46,33 +35,30 @@ class OnlineResponse:
         """
         self.proto = online_response_proto
         # Delete DUMMY_ENTITY_ID from proto if it exists
-        for item in self.proto.field_values:
-            if DUMMY_ENTITY_ID in item.statuses:
-                del item.statuses[DUMMY_ENTITY_ID]
-            if DUMMY_ENTITY_ID in item.fields:
-                del item.fields[DUMMY_ENTITY_ID]
-
-    @property
-    def field_values(self):
-        """
-        Getter for GetOnlineResponse's field_values.
-        """
-        return self.proto.field_values
+        for idx, val in enumerate(self.proto.metadata.feature_names.val):
+            if val == DUMMY_ENTITY_ID:
+                del self.proto.metadata.feature_names.val[idx]
+                for result in self.proto.results:
+                    del result.values[idx]
+                    del result.statuses[idx]
+                    del result.event_timestamps[idx]
+                break
 
     def to_dict(self) -> Dict[str, Any]:
         """
         Converts GetOnlineFeaturesResponse features into a dictionary form.
         """
-        features_dict: Dict[str, List[Any]] = {
-            k: list() for row in self.field_values for k, _ in row.statuses.items()
-        }
+        response: Dict[str, List[Any]] = {}
 
-        for row in self.field_values:
-            for feature in features_dict.keys():
-                native_type_value = feast_value_type_to_python_type(row.fields[feature])
-                features_dict[feature].append(native_type_value)
+        for result in self.proto.results:
+            for idx, feature_ref in enumerate(self.proto.metadata.feature_names.val):
+                native_type_value = feast_value_type_to_python_type(result.values[idx])
+                if feature_ref not in response:
+                    response[feature_ref] = [native_type_value]
+                else:
+                    response[feature_ref].append(native_type_value)
 
-        return features_dict
+        return response
 
     def to_df(self) -> pd.DataFrame:
         """
@@ -80,65 +66,3 @@ class OnlineResponse:
         """
 
         return pd.DataFrame(self.to_dict())
-
-
-def _infer_online_entity_rows(
-    entity_rows: List[Dict[str, Any]]
-) -> List[GetOnlineFeaturesRequestV2.EntityRow]:
-    """
-    Builds a list of EntityRow protos from Python native type format passed by user.
-
-    Args:
-        entity_rows: A list of dictionaries where each key-value is an entity-name, entity-value pair.
-    Returns:
-        A list of EntityRow protos parsed from args.
-    """
-
-    entity_rows_dicts = cast(List[Dict[str, Any]], entity_rows)
-    entity_row_list = []
-    entity_type_map: Dict[str, ValueType] = dict()
-    entity_python_values_map = defaultdict(list)
-
-    # Flatten keys-value dicts into lists for type inference
-    for entity in entity_rows_dicts:
-        for key, value in entity.items():
-            if isinstance(value, Value):
-                inferred_type = _proto_value_to_value_type(value)
-                # If any ProtoValues were present their types must all be the same
-                if key in entity_type_map and entity_type_map.get(key) != inferred_type:
-                    raise TypeError(
-                        f"Input entity {key} has mixed types, {entity_type_map.get(key)} and {inferred_type}. That is not allowed."
-                    )
-                entity_type_map[key] = inferred_type
-            else:
-                entity_python_values_map[key].append(value)
-
-    # Loop over all entities to infer dtype first in case of empty lists or nulls
-    for key, values in entity_python_values_map.items():
-        inferred_type = python_values_to_feast_value_type(key, values)
-
-        # If any ProtoValues were present their types must match the inferred type
-        if key in entity_type_map and entity_type_map.get(key) != inferred_type:
-            raise TypeError(
-                f"Input entity {key} has mixed types, {entity_type_map.get(key)} and {inferred_type}. That is not allowed."
-            )
-
-        entity_type_map[key] = inferred_type
-
-    for entity in entity_rows_dicts:
-        fields = {}
-        for key, value in entity.items():
-            if key not in entity_type_map:
-                raise ValueError(
-                    f"field {key} cannot have all null values for type inference."
-                )
-
-            if isinstance(value, Value):
-                proto_value = value
-            else:
-                proto_value = _python_value_to_proto_value(
-                    entity_type_map[key], [value]
-                )[0]
-            fields[key] = proto_value
-        entity_row_list.append(GetOnlineFeaturesRequestV2.EntityRow(fields=fields))
-    return entity_row_list
