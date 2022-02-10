@@ -74,6 +74,11 @@ class S3RegistryBucketForbiddenAccess(FeastObjectNotFoundException):
         super().__init__(f"S3 bucket {bucket} for the Feast registry can't be accessed")
 
 
+class SavedDatasetNotFound(FeastObjectNotFoundException):
+    def __init__(self, name: str, project: str):
+        super().__init__(f"Saved dataset {name} does not exist in project {project}")
+
+
 class FeastProviderLoginError(Exception):
     """Error class that indicates a user has not authenticated with their provider."""
 
@@ -103,14 +108,16 @@ class FeastFeatureServerTypeInvalidError(Exception):
 
 
 class FeastModuleImportError(Exception):
-    def __init__(self, module_name: str, module_type: str):
-        super().__init__(f"Could not import {module_type} module '{module_name}'")
+    def __init__(self, module_name: str, class_name: str):
+        super().__init__(
+            f"Could not import module '{module_name}' while attempting to load class '{class_name}'"
+        )
 
 
 class FeastClassImportError(Exception):
-    def __init__(self, module_name, class_name, class_type="provider"):
+    def __init__(self, module_name: str, class_name: str):
         super().__init__(
-            f"Could not import {class_type} '{class_name}' from module '{module_name}'"
+            f"Could not import class '{class_name}' from module '{module_name}'"
         )
 
 
@@ -168,11 +175,10 @@ class FeastOnlineStoreInvalidName(Exception):
         )
 
 
-class FeastClassInvalidName(Exception):
+class FeastInvalidBaseClass(Exception):
     def __init__(self, class_name: str, class_type: str):
         super().__init__(
-            f"Config Class '{class_name}' "
-            f"should end with the string `{class_type}`.'"
+            f"Class '{class_name}' should have `{class_type}` as a base class."
         )
 
 
@@ -237,6 +243,23 @@ class RedshiftQueryError(Exception):
         super().__init__(f"Redshift SQL Query failed to finish. Details: {details}")
 
 
+class RedshiftTableNameTooLong(Exception):
+    def __init__(self, table_name: str):
+        super().__init__(
+            f"Redshift table names have a maximum length of 127 characters, but the table name {table_name} has length {len(table_name)} characters."
+        )
+
+
+class SnowflakeCredentialsError(Exception):
+    def __init__(self):
+        super().__init__("Snowflake Connector failed due to incorrect credentials")
+
+
+class SnowflakeQueryError(Exception):
+    def __init__(self, details):
+        super().__init__(f"Snowflake SQL Query failed to finish. Details: {details}")
+
+
 class EntityTimestampInferenceException(Exception):
     def __init__(self, expected_column_name: str):
         super().__init__(
@@ -292,3 +315,18 @@ class IncompatibleRegistryStoreClass(Exception):
         super().__init__(
             f"The registry store class was expected to be {expected_class}, but was instead {actual_class}."
         )
+
+
+class FeastInvalidInfraObjectType(Exception):
+    def __init__(self):
+        super().__init__("Could not identify the type of the InfraObject.")
+
+
+class SnowflakeIncompleteConfig(Exception):
+    def __init__(self, e: KeyError):
+        super().__init__(f"{e} not defined in a config file or feature_store.yaml file")
+
+
+class SnowflakeQueryUnknownError(Exception):
+    def __init__(self, query: str):
+        super().__init__(f"Snowflake query failed: {query}")
