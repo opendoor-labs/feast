@@ -1,0 +1,107 @@
+#!/usr/bin/env python
+
+"""This script builds and publishes a wheel from a Poetry project. Poetry has build and publish
+capabilities, but this script does some additional things:
+- It adds a timestamp as the patch version.
+- It replaces local dependencies with published dependencies.
+"""
+
+import argparse
+import os
+import subprocess
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from typing import Optional
+
+import toml
+
+
+@contextmanager
+def stash_file(filename: str, stash_name: str) -> None:
+    """In the context of `with stash_file("a", "b"): ...`, the file named "a" will be renamed
+    to "b". Upon leaving the context, the file named "a" will be restored to its original
+    contents, and file "b" will be deleted. An exception is raised if "b" already exists."""
+
+    try:
+        os.rename(filename, stash_name)
+    except FileNotFoundError as e:
+        raise EnvironmentError(f"No such file: {filename}") from e
+    except OSError as e:
+        raise EnvironmentError(f"Please remove {stash_name}") from e
+
+    try:
+        yield
+    finally:
+        os.replace(stash_name, filename)
+
+
+def release(patch_version: Optional[str], log_file: Optional[str]) -> None:
+    """
+    Assumes there's a pyproject.toml file in the current working directory. This function
+    adds a patch version, replaces local dependencies with published ones, and releases a
+    wheel file to our local repository.
+    """
+
+    pyproject_filename = "pyproject.toml"
+    with stash_file(pyproject_filename, f"{pyproject_filename}.old"):
+        pyproject_data = toml.load(f"{pyproject_filename}.old")
+
+        # Add a timestamp for the patch version
+        version_str = pyproject_data["tool"]["poetry"]["version"]
+        if version_str.count(".") != 1:
+            raise ValueError("Version must be major.minor, patch will be added.")
+
+        if not patch_version:
+            patch_version = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+
+        release_version = f"{version_str}.{patch_version}"
+        pyproject_data["tool"]["poetry"]["version"] = release_version
+
+        # Replace local dependencies with published dependencies
+        for dep_section in ("dependencies", "dev-dependencies"):
+            dependencies = pyproject_data["tool"]["poetry"].get(dep_section, [])
+            for dep_name in dependencies:
+                dep_value = dependencies[dep_name]
+                if isinstance(dep_value, dict) and "path" in dep_value:
+                    # Found a local dependency. Load its pyproject.toml to get its version
+                    dep_pyproject_filename = f"{dep_value['path']}/pyproject.toml"
+                    dep_pyproject_contents = toml.load(dep_pyproject_filename)
+                    dep_version = dep_pyproject_contents["tool"]["poetry"]["version"]
+                    if dep_version.count(".") != 1:
+                        raise ValueError(f"Version in {dep_pyproject_filename} must be major.minor")
+
+                    dep_version_parts = tuple(int(v) for v in dep_version.split("."))
+                    next_minor_version = ".".join([str(dep_version_parts[0]), str(dep_version_parts[1] + 1)])
+
+                    # The requirement should be to use the most recent published version, but
+                    # add a max version constraint so we don't pull in future versions that might
+                    # accidentally break things.
+                    dep_version_requirement = f">={dep_version},<{next_minor_version}"
+                    dependencies[dep_name] = dep_version_requirement
+
+        with open(pyproject_filename, "w") as output_file:
+            toml.dump(pyproject_data, output_file)
+        
+        build_status = subprocess.run(["poetry", "publish", "--build", "--repository", "local"])
+        if build_status.returncode != 0:
+            raise subprocess.CalledProcessError("Could not build wheel, please see output above to debug.")
+
+        if log_file:
+            project_name = pyproject_data["tool"]["poetry"]["name"]
+            with open(log_file, "a") as f:
+                f.write(f"{project_name}=={release_version}\n")
+
+        # Improvements todo:
+        # - Run poetry config repositories to make sure the local repository is setup.
+        # - Read username & password from ~/.pypirc so the user doesn't need to type them.
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Release Poetry package")
+    parser.add_argument("--version", help="patch version (default is $POETRY_RELEASE_VERSION or current timestamp)")
+    parser.add_argument("--log", help="appends released version to the log file")
+    args = parser.parse_args()
+
+    version = args.version or os.getenv('POETRY_RELEASE_VERSION')
+
+    release(version, args.log)

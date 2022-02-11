@@ -199,3 +199,8 @@ build-sphinx: compile-protos-python
 
 build-templates:
 	python infra/scripts/compile-templates.py
+
+
+# Poetry release SDK
+poetry-release:
+	cd sdk/python && ./release_poetry_package

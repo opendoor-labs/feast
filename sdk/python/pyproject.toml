@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "od-feast"
-version = "0.18.1"
+version = "0.18"
 description = "Feast Opendoor Forked"
 authors = ["ZF Deng <zhifeng.deng@opendoor.com>"]
 packages = [
