@@ -43,6 +43,9 @@ jsonschema = "^4.4.0"
 # Snowflake optional
 snowflake-connector-python = { version="^2.7.3", extras=["pandas"], optional=true }
 
+# Great expectations
+great_expectations = { version="^0.14.*", optional=true }
+
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -50,6 +53,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.extras]
 snowflake = ["snowflake-connector-python"]
+ge = ["great_expectations"]
 
 
 [tool.black]
