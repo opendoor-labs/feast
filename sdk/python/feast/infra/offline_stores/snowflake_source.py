@@ -50,6 +50,9 @@ class SnowflakeSource(DataSource):
         # The default Snowflake schema is named "PUBLIC".
         _schema = "PUBLIC" if (database and table and not schema) else schema
 
+        # Snowflake Sql is case-sensitive(semi), to unify all column names with the lower case.
+        query = query.lower() if isinstance(query, str) else query
+
         self._snowflake_options = SnowflakeOptions(
             database=database, schema=_schema, table=table, query=query
         )

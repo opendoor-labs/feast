@@ -204,6 +204,9 @@ class SnowflakeOfflineStore(OfflineStore):
     ) -> RetrievalJob:
         assert isinstance(config.offline_store, SnowflakeOfflineStoreConfig)
 
+        # Entity DF to lower if it's str
+        entity_df = entity_df.lower() if isinstance(entity_df, str) else entity_df
+
         snowflake_conn = get_snowflake_conn(config.offline_store)
 
         entity_schema = _get_entity_schema(entity_df, snowflake_conn, config)
@@ -315,7 +318,9 @@ class SnowflakeRetrievalJob(RetrievalJob):
             df = execute_snowflake_statement(
                 self.snowflake_conn, query
             ).fetch_pandas_all()
-
+            # Use lowercase column names
+            df.columns = map(str.lower, df.columns)
+            df = df.reset_index(drop=True)
         return df
 
     def _to_arrow_internal(self) -> pa.Table:
@@ -393,7 +398,8 @@ def _get_entity_schema(
             snowflake_conn, query
         ).fetch_pandas_all()
 
-        return dict(zip(limited_entity_df.columns, limited_entity_df.dtypes))
+        # Map columns name to lower
+        return dict(zip(map(str.lower, limited_entity_df.columns), limited_entity_df.dtypes))
 
 
 def _upload_entity_df(
