@@ -12,7 +12,7 @@ name = "pypi-local"
 url = "https://opendoor.jfrog.io/opendoor/api/pypi/pip/simple"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.8"
 Click = "^8.*"
 colorama = ">=0.3.9"
 dill = "^0.3.*"
