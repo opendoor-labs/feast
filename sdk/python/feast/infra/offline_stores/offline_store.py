@@ -14,11 +14,12 @@
 import warnings
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Callable, List, Optional, Union
 
 import pandas as pd
 import pyarrow
 
+from feast.feature import Feature
 from feast.data_source import DataSource
 from feast.dqm.errors import ValidationFailed
 from feast.feature_view import FeatureView
@@ -159,6 +160,12 @@ class RetrievalJob(ABC):
         Should be available even before materializing the dataset itself.
         """
         pass
+
+    def validate(self, feature_view: FeatureView, validate_func: Callable[[pd.DataFrame, List[Feature]], None]) -> None:
+        """
+        Validate the feature view with the dataframe.
+        """
+        return validate_func(self.to_df(), feature_view.features)
 
 
 class OfflineStore(ABC):
