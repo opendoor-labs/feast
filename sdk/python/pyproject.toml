@@ -37,15 +37,14 @@ tqdm = "^4.*"
 fastapi = ">=0.68.0"
 uvicorn = { version = ">=0.14.0", extras=["standard"] }
 tensorflow-metadata = "^1.*"
-mmh3 = "^3.0.0"
-jsonschema = "^4.4.0"
+mmh3 = "*"
+jsonschema = "*"
 
 # Snowflake optional
-snowflake-connector-python = { version="^2.7.3", extras=["pandas"], optional=true }
+snowflake-connector-python = { version=">=2.7.3", optional=true }
 
 # Great expectations
 great_expectations = { version="^0.14.*", optional=true }
-
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
