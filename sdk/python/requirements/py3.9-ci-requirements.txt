@@ -432,7 +432,7 @@ numpy==1.21.5
     #   pandavro
     #   pyarrow
     #   scipy
-oauthlib==3.2.0
+oauthlib==3.2.1
     # via requests-oauthlib
 oscrypto==1.2.1
     # via snowflake-connector-python
@@ -490,7 +490,7 @@ proto-plus==1.19.6
     #   google-cloud-bigquery-storage
     #   google-cloud-datastore
     #   google-cloud-firestore
-protobuf==3.19.4
+protobuf==3.19.5
     # via
     #   feast (setup.py)
     #   google-api-core
