@@ -534,7 +534,7 @@ pydantic==1.9.0
     #   feast (setup.py)
 pyflakes==2.4.0
     # via flake8
-pygments==2.11.2
+pygments==2.15.0
     # via
     #   ipython
     #   jupyterlab-pygments
