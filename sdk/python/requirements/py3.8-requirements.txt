@@ -41,7 +41,7 @@ googleapis-common-protos==1.52.0
     #   feast (setup.py)
     #   google-api-core
     #   tensorflow-metadata
-grpcio==1.43.0
+grpcio==1.53.2
     # via
     #   feast (setup.py)
     #   grpcio-reflection
