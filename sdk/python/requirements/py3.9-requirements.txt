@@ -92,7 +92,7 @@ pyasn1==0.4.8
     #   rsa
 pyasn1-modules==0.2.8
     # via google-auth
-pydantic==1.9.0
+pydantic==1.10.13
     # via
     #   fastapi
     #   feast (setup.py)
@@ -135,7 +135,7 @@ tqdm==4.62.3
     # via feast (setup.py)
 typing-extensions==4.0.1
     # via pydantic
-urllib3==1.26.8
+urllib3==1.26.17
     # via requests
 uvicorn[standard]==0.17.0
     # via feast (setup.py)
