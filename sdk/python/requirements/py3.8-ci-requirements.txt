@@ -378,7 +378,7 @@ mock==2.0.0
     # via feast (setup.py)
 moto==3.0.2
     # via feast (setup.py)
-msal==1.16.0
+msal==1.24.1
     # via
     #   azure-identity
     #   msal-extensions
@@ -528,7 +528,7 @@ pycparser==2.21
     # via cffi
 pycryptodomex==3.14.0
     # via snowflake-connector-python
-pydantic==1.9.0
+pydantic==1.10.13
     # via
     #   fastapi
     #   feast (setup.py)
