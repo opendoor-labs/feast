@@ -802,7 +802,7 @@ tzlocal==4.1
     # via great-expectations
 uritemplate==4.1.1
     # via google-api-python-client
-urllib3==1.26.8
+urllib3==1.26.17
     # via
     #   botocore
     #   feast (setup.py)
