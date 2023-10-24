@@ -137,7 +137,7 @@ tqdm==4.62.3
     # via feast (setup.py)
 typing-extensions==4.0.1
     # via pydantic
-urllib3==1.26.8
+urllib3==1.26.18
     # via requests
 uvicorn[standard]==0.17.0
     # via feast (setup.py)
