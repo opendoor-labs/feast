@@ -728,7 +728,7 @@ tomli==2.0.0
     #   pep517
 toolz==0.11.2
     # via altair
-tornado==6.1
+tornado==6.3.3
     # via
     #   ipykernel
     #   jupyter-client
@@ -825,7 +825,7 @@ websocket-client==1.2.3
     # via docker
 websockets==10.1
     # via uvicorn
-werkzeug==2.0.2
+werkzeug==3.0.1
     # via moto
 wheel==0.37.1
     # via pip-tools
