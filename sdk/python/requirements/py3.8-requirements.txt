@@ -86,7 +86,7 @@ protobuf==3.19.3
     #   grpcio-reflection
     #   proto-plus
     #   tensorflow-metadata
-pyarrow==6.0.1
+pyarrow==14.0.1
     # via feast (setup.py)
 pyasn1==0.4.8
     # via
