@@ -512,7 +512,7 @@ py==1.11.0
     #   pytest-forked
 py-cpuinfo==8.0.0
     # via pytest-benchmark
-pyarrow==6.0.1
+pyarrow==14.0.1
     # via
     #   feast (setup.py)
     #   snowflake-connector-python
