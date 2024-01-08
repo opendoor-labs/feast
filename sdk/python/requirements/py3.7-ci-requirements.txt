@@ -526,7 +526,7 @@ pycodestyle==2.8.0
     # via flake8
 pycparser==2.21
     # via cffi
-pycryptodomex==3.14.0
+pycryptodomex==3.19.1
     # via snowflake-connector-python
 pydantic==1.9.0
     # via
