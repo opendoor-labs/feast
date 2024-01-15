@@ -57,7 +57,7 @@ idna==3.3
     #   requests
 importlib-resources==5.4.0
     # via jsonschema
-jinja2==3.0.3
+jinja2==3.1.3
     # via feast (setup.py)
 jsonschema==4.4.0
     # via feast (setup.py)
