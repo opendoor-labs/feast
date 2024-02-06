@@ -26,7 +26,7 @@ colorama==0.4.4
     # via feast (setup.py)
 dill==0.3.4
     # via feast (setup.py)
-fastapi==0.72.0
+fastapi==0.109.1
     # via feast (setup.py)
 fastavro==1.4.9
     # via
