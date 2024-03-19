@@ -73,7 +73,7 @@ backports.zoneinfo==0.2.1
     # via
     #   pytz-deprecation-shim
     #   tzlocal
-black==19.10b0
+black==24.3.0
     # via feast (setup.py)
 bleach==4.1.0
     # via nbconvert
