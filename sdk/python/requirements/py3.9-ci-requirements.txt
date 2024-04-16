@@ -268,7 +268,7 @@ httptools==0.3.0
     # via uvicorn
 identify==2.4.7
     # via pre-commit
-idna==3.3
+idna==3.7
     # via
     #   anyio
     #   requests
