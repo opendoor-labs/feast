@@ -314,7 +314,7 @@ isort==5.10.1
     # via feast (setup.py)
 jedi==0.18.1
     # via ipython
-jinja2==3.0.3
+jinja2==3.1.4
     # via
     #   altair
     #   feast (setup.py)
