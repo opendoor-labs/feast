@@ -110,7 +110,7 @@ pyyaml==6.0
     # via
     #   feast (setup.py)
     #   uvicorn
-requests==2.27.1
+requests==2.32.0
     # via google-api-core
 rsa==4.8
     # via google-auth
