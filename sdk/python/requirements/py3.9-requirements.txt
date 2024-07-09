@@ -14,7 +14,7 @@ attrs==21.4.0
     # via jsonschema
 cachetools==4.2.4
     # via google-auth
-certifi==2021.10.8
+certifi==2024.7.4
     # via requests
 charset-normalizer==2.0.10
     # via requests
@@ -148,3 +148,4 @@ websockets==10.1
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
