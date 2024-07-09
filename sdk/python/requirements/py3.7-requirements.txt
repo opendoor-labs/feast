@@ -14,7 +14,7 @@ attrs==21.4.0
     # via jsonschema
 cachetools==4.2.4
     # via google-auth
-certifi==2021.10.8
+certifi==2024.7.4
     # via requests
 charset-normalizer==2.0.10
     # via requests
@@ -159,7 +159,7 @@ watchgod==0.7
     # via uvicorn
 websockets==10.1
     # via uvicorn
-zipp==3.7.0
+zipp==3.19.1
     # via
     #   importlib-metadata
     #   importlib-resources
